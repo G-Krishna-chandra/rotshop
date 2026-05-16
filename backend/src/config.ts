@@ -35,6 +35,10 @@ export const config = {
   corsOrigin: optional('CORS_ORIGIN', '*'),
   repoCloneDir: optional('REPO_CLONE_DIR', './repos'),
   claudeModel: optional('CLAUDE_MODEL', 'claude-sonnet-4-6'),
+  sandboxMode: optional('SANDBOX_MODE', 'auto') as 'auto' | 'docker' | 'simulate' | 'skip',
+  proxyContainerIdleSeconds: num('PROXY_CONTAINER_IDLE_SECONDS', 300),
+  proxyContainerPortRangeStart: num('PROXY_CONTAINER_PORT_RANGE_START', 4100),
+  proxyContainerPortRangeEnd: num('PROXY_CONTAINER_PORT_RANGE_END', 4999),
 } as const;
 
 export type Config = typeof config;
