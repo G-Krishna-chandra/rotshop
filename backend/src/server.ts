@@ -10,6 +10,7 @@ import { reviewRoutes } from './routes/review.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { keyRoutes } from './routes/keys.js';
 import { proxyRoutes } from './routes/proxy.js';
+import { startSandboxWorker } from './queue/workers.js';
 
 const app = Fastify({
   logger: { level: config.logLevel },
@@ -45,6 +46,8 @@ await app.register(proxyRoutes);
 try {
   await app.listen({ port: config.port, host: config.host });
   app.log.info(`rotshop backend ready on http://${config.host}:${config.port}`);
+  // Fire-and-forget: worker prints its own status; never blocks server start.
+  startSandboxWorker().catch((err) => app.log.warn({ err }, 'sandbox worker failed to start'));
 } catch (err) {
   app.log.error(err);
   process.exit(1);
