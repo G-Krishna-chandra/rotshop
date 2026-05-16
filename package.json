@@ -1,0 +1,5 @@
+{
+  "name": "rotshop",
+  "private": true,
+  "workspaces": ["frontend", "backend", "shared"]
+}
