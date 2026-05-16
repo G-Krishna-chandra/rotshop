@@ -10,6 +10,8 @@ import { reviewRoutes } from './routes/review.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { keyRoutes } from './routes/keys.js';
 import { proxyRoutes } from './routes/proxy.js';
+import { adminRoutes } from './routes/admin.js';
+import { registerAuth } from './middleware/auth.js';
 import { startSandboxWorker } from './queue/workers.js';
 
 const app = Fastify({
@@ -34,10 +36,13 @@ await app.register(cors, {
 
 ensureSchema();
 
+await registerAuth(app);
+
 await app.register(healthRoutes);
 await app.register(submitRoutes);
 await app.register(discoverRoutes);
 await app.register(moduleRoutes);
+await app.register(adminRoutes);
 await app.register(reviewRoutes);
 await app.register(dashboardRoutes);
 await app.register(keyRoutes);
