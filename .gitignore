@@ -44,3 +44,7 @@ Thumbs.db
 # Coverage
 coverage/
 .nyc_output/
+
+# Claude Design handoff bundle (reference material, not part of any package)
+design.tar.gz
+design_extract/
