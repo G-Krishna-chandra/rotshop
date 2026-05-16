@@ -6,6 +6,7 @@ import {
   matchModules, projectDescriptor, segmentsToText, tokenize,
   formatPrice, Stars,
 } from '../data/modules.jsx';
+import { api, adaptMatches } from '../api.ts';
 
 const EXAMPLES = [
   'SaaS analytics dashboard with user auth, subscription billing, and email alerts',
@@ -28,33 +29,60 @@ export default function Discovery() {
   const [step, setStep] = useState(-1);
   const [matched, setMatched] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [apiReady, setApiReady] = useState(false);
 
   function submit(segs) {
     if (!segs || segs.length === 0) return;
     setSubmittedSegments(segs);
-    const m = matchModules(segs);
+
+    // Compute local mock matches eagerly — used as fallback if the API call fails.
+    const localMatches = matchModules(segs);
     const promptText = segmentsToText(segs);
     const proj = projectDescriptor(promptText);
-    const matchedWithFit = m.map((row) => {
+    const localMatched = localMatches.map((row) => {
       const fitText = row.fallback
         ? `Popular pick — a strong default for ${proj}.`
         : row.m.fit(proj, row.hits || []);
       return { ...row, fit: fitText };
     });
-    setMatched(matchedWithFit);
+    setMatched(localMatched);
+    setApiReady(false);
     setStep(0);
     setPhase('thinking');
+
+    // Fire the real /api/discover call in parallel with the thinking animation.
+    // If it succeeds, swap in the API matches before transitioning to results.
+    // If it fails, keep the local matches that are already set.
+    const categories = Array.from(
+      new Set(segs.filter((s) => s.type === 'tag').map((s) => s.cat))
+    );
+    api
+      .discover({ query: promptText, categories })
+      .then((res) => {
+        if (res.matches && res.matches.length > 0) {
+          setMatched(adaptMatches(res.matches));
+        }
+      })
+      .catch(() => {
+        // Fallback already set above.
+      })
+      .finally(() => setApiReady(true));
   }
 
+  // Drive the thinking animation, but gate the final transition on the API call.
+  // If the API resolves first, we proceed as soon as the animation finishes;
+  // if the API is still in flight when the animation finishes, we hold on the
+  // last step (spinner shown) until the API resolves.
   useEffect(() => {
     if (phase !== 'thinking') return;
     if (step >= THINK_STEPS.length) {
+      if (!apiReady) return;
       const tt = setTimeout(() => setPhase('results'), 280);
       return () => clearTimeout(tt);
     }
     const tt = setTimeout(() => setStep(step + 1), 580);
     return () => clearTimeout(tt);
-  }, [phase, step]);
+  }, [phase, step, apiReady]);
 
   function refine() {
     setSeedSegments(submittedSegments);
@@ -82,6 +110,20 @@ export default function Discovery() {
     setSelected(m);
     setPhase('detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // For API-sourced modules (have slug, snippet not yet populated) hydrate
+    // the snippet via /api/modules/:slug. Local mocks already include snippet
+    // inline, so we skip the fetch for them.
+    if (m.slug && !m.snippet) {
+      api
+        .getModule(m.slug)
+        .then((res) => {
+          setSelected((cur) => (cur && cur.id === m.id ? { ...cur, snippet: res.apiSnippet } : cur));
+        })
+        .catch(() => {
+          // Leave snippet empty; IntegrationDetail still renders without it.
+        });
+    }
   }
 
   function backToResults() {

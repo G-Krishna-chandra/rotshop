@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { CATEGORIES } from '../data/modules.jsx';
+import { api } from '../api.ts';
 
 const SUBMIT_STEPS = [
   'Cloning repository...',
@@ -30,27 +31,95 @@ export default function Submit({ go }) {
   const [stackInput, setStackInput] = useState('');
   const [pricingModel, setPricingModel] = useState('buy');
   const [amount, setAmount] = useState('');
+  const [apiModule, setApiModule] = useState(null);
+  const [apiReady, setApiReady] = useState(false);
 
   function analyze() {
     if (!url.trim()) return;
+    setApiModule(null);
+    setApiReady(false);
     setPhase('analyzing');
     setStep(0);
+
+    // /api/submit clones the repo + invokes Claude, which can take 10-30s.
+    // Run it in parallel with the animation; the transition effect below
+    // gates the move to 'review' on both the animation reaching its last step
+    // AND this promise settling. On failure, we still advance using the
+    // hard-coded CacheLayer mock so the demo never dead-ends.
+    api
+      .submit({ githubUrl: url.trim(), submitterEmail: 'demo@rotshop.dev' })
+      .then((res) => {
+        setApiModule(res.module);
+      })
+      .catch(() => {
+        // apiModule stays null — fallback used in the transition effect.
+      })
+      .finally(() => setApiReady(true));
   }
 
+  // Step animation: advance through SUBMIT_STEPS, but hold on the last step
+  // until the API call resolves rather than cycling forward into an empty review.
   useEffect(() => {
     if (phase !== 'analyzing') return;
-    if (step >= SUBMIT_STEPS.length) {
-      const tt = setTimeout(() => {
-        setListing({ ...AUTO_LISTING });
-        setPhase('review');
-      }, 320);
-      return () => clearTimeout(tt);
-    }
+    if (step >= SUBMIT_STEPS.length - 1) return;
     const tt = setTimeout(() => setStep(step + 1), 600);
     return () => clearTimeout(tt);
   }, [phase, step]);
 
+  // Transition gate: only move to 'review' once both the animation has reached
+  // its final step AND the API has settled (success or failure).
+  useEffect(() => {
+    if (phase !== 'analyzing') return;
+    if (!apiReady) return;
+    if (step < SUBMIT_STEPS.length - 1) return;
+    const tt = setTimeout(() => {
+      if (apiModule) {
+        setListing({
+          id: apiModule.id,
+          slug: apiModule.slug,
+          name: apiModule.name,
+          description: apiModule.description,
+          category: apiModule.category,
+          stack: apiModule.techStack && apiModule.techStack.length > 0 ? apiModule.techStack : [],
+          inputs: apiModule.inputContract,
+          outputs: apiModule.outputContract,
+        });
+        if (apiModule.pricingModel) setPricingModel(apiModule.pricingModel);
+        if (apiModule.price && apiModule.price > 0) {
+          setAmount(String(Math.round(apiModule.price / 100)));
+        }
+      } else {
+        setListing({ ...AUTO_LISTING });
+      }
+      setPhase('review');
+    }, 320);
+    return () => clearTimeout(tt);
+  }, [phase, step, apiReady, apiModule]);
+
   function patch(p) { setListing((l) => ({ ...l, ...p })); }
+
+  async function submitForReview() {
+    if (!amount || Number(amount) <= 0) return;
+    // PATCH back any edits the user made if this listing came from the API.
+    // Local CacheLayer mock has no id, so we skip the network call.
+    if (listing?.id) {
+      try {
+        await api.editSubmission(listing.id, {
+          name: listing.name,
+          description: listing.description,
+          category: listing.category,
+          techStack: listing.stack,
+          inputContract: listing.inputs,
+          outputContract: listing.outputs,
+          pricingModel,
+          price: Math.round(Number(amount)) * 100,
+        });
+      } catch {
+        // Don't block the success screen on a failed PATCH — listing is already in DB.
+      }
+    }
+    setPhase('done');
+  }
 
   function addStack() {
     const v = stackInput.trim().replace(/,$/, '');
@@ -320,7 +389,7 @@ export default function Submit({ go }) {
               </button>
               <button
                 className="btn btn-vermillion btn-lg"
-                onClick={() => setPhase('done')}
+                onClick={submitForReview}
                 style={{
                   opacity: amount && Number(amount) > 0 ? 1 : 0.4,
                   pointerEvents: amount && Number(amount) > 0 ? 'auto' : 'none',

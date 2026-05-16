@@ -1,14 +1,31 @@
+import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { DASHBOARD_MODULES, EARNINGS } from '../data/modules.jsx';
+import { api } from '../api.ts';
 
 function statusClass(s) {
-  if (s === 'Live') return 'live';
-  if (s === 'Manual Review') return 'review';
-  if (s === 'AI Review') return 'ai';
+  if (s === 'Live' || s === 'live') return 'live';
+  if (s === 'Manual Review' || s === 'pending_review') return 'review';
+  if (s === 'AI Review' || s === 'sandbox_running' || s === 'pending_sandbox_test') return 'ai';
   return '';
 }
 
-const STATS = [
+// Backend status enum → human label for the status pill.
+function statusLabel(s) {
+  switch (s) {
+    case 'live': return 'Live';
+    case 'pending_review': return 'Manual Review';
+    case 'sandbox_running':
+    case 'pending_sandbox_test': return 'AI Review';
+    case 'approved': return 'Approved';
+    case 'rejected': return 'Rejected';
+    case 'sandbox_failed': return 'Sandbox Failed';
+    case 'sandbox_passed': return 'Sandbox Passed';
+    default: return s;
+  }
+}
+
+const STATS_FALLBACK = [
   { l: 'Total Earnings', v: '$2,340' },
   { l: 'Live Modules', v: '3' },
   { l: 'Total Integrations', v: '142' },
@@ -23,7 +40,41 @@ const ACTIVITY = [
 ];
 
 export default function Dashboard({ go }) {
-  const maxE = Math.max(...EARNINGS.map((e) => e.value));
+  // Try real /api/dashboard; if it 501s or errors, fall back to local mocks.
+  const [dash, setDash] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.getDashboard()
+      .then((d) => { if (alive) setDash(d); })
+      .catch(() => { /* stay on mocks */ });
+    return () => { alive = false; };
+  }, []);
+
+  const stats = dash
+    ? [
+        { l: 'Total Earnings',     v: '$' + Math.round((dash.stats.totalEarnings || 0) / 100).toLocaleString() },
+        { l: 'Live Modules',       v: String(dash.stats.liveModules ?? 0) },
+        { l: 'Total Integrations', v: String(dash.stats.totalIntegrations ?? 0) },
+        { l: 'In Review',          v: String(dash.stats.inReview ?? 0) },
+      ]
+    : STATS_FALLBACK;
+
+  // Backend MonthlyEarning.amount assumed to be cents → display dollars.
+  const earnings = dash?.earnings?.length
+    ? dash.earnings.map((e) => ({ month: e.month, value: Math.round(e.amount / 100) }))
+    : EARNINGS;
+
+  const dashboardModules = dash?.modules?.length
+    ? dash.modules.map((m) => ({
+        name: m.name,
+        status: statusLabel(m.status),
+        earnings: Math.round((m.price || 0) / 100) * (m.integrationCount || 0),
+        integrations: m.integrationCount || 0,
+      }))
+    : DASHBOARD_MODULES;
+
+  const maxE = Math.max(...earnings.map((e) => e.value), 1);
 
   return (
     <main className="fade-in dash-shell">
@@ -45,7 +96,7 @@ export default function Dashboard({ go }) {
         </div>
 
         <div className="stat-grid">
-          {STATS.map((s) => (
+          {stats.map((s) => (
             <div className="stat" key={s.l}>
               <div className="stat-label v3-mono">{s.l}</div>
               <div className="stat-value">{s.v}</div>
@@ -70,7 +121,7 @@ export default function Dashboard({ go }) {
               </div>
             </div>
             <div className="bars">
-              {EARNINGS.map((e) => {
+              {earnings.map((e) => {
                 const h = (e.value / maxE) * 100;
                 return (
                   <div className="bar-col" key={e.month}>
@@ -112,7 +163,7 @@ export default function Dashboard({ go }) {
           <div className="between" style={{ padding: '20px 24px' }}>
             <div>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 17 }}>Your modules</div>
-              <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{DASHBOARD_MODULES.length} total</div>
+              <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{dashboardModules.length} total</div>
             </div>
           </div>
           <table className="table">
@@ -126,7 +177,7 @@ export default function Dashboard({ go }) {
               </tr>
             </thead>
             <tbody>
-              {DASHBOARD_MODULES.map((m) => (
+              {dashboardModules.map((m) => (
                 <tr key={m.name}>
                   <td><div style={{ fontWeight: 500 }}>{m.name}</div></td>
                   <td>
