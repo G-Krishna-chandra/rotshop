@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": false,
+    "baseUrl": ".",
+    "paths": {
+      "@rotshop/shared": ["../shared/types.ts"],
+      "@rotshop/shared/*": ["../shared/*"]
+    }
+  },
+  "include": ["src/**/*", "../shared/**/*.ts", "drizzle.config.ts"]
+}
