@@ -15,7 +15,48 @@ import { db, schema } from '../db/index.js';
 import { toModuleDTO } from '../db/serializers.js';
 import { config } from '../config.js';
 import { cloneRepo, analyzeRepo } from '../services/repo-analyzer.js';
+import { runSandboxFlow } from '../services/sandbox.js';
 import { enqueueSandboxTest } from '../queue/index.js';
+
+// Best-effort inline sandbox so demos work without Redis. We never await this
+// from the request handler — the caller's response returns immediately and the
+// module flips status when the sandbox finishes.
+async function runInlineSandbox(
+  moduleId: string,
+  repoPath: string,
+  techStack: string[],
+  inputContract: string,
+  outputContract: string,
+): Promise<void> {
+  try {
+    await db
+      .update(schema.modules)
+      .set({ status: 'sandbox_running', updatedAt: new Date() })
+      .where(eq(schema.modules.id, moduleId));
+    const outcome = await runSandboxFlow(moduleId, repoPath, techStack, inputContract, outputContract);
+    await db
+      .update(schema.modules)
+      .set({
+        status: outcome.passed ? 'sandbox_passed' : 'sandbox_failed',
+        testResults: JSON.stringify(outcome.testResults),
+        sandboxLogs: outcome.logs,
+        dockerImage: outcome.imageTag ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.modules.id, moduleId));
+  } catch (err) {
+    console.warn('[submit] inline sandbox failed for', moduleId, err);
+    await db
+      .update(schema.modules)
+      .set({
+        status: 'sandbox_failed',
+        sandboxLogs: `inline sandbox error: ${(err as Error).message}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.modules.id, moduleId))
+      .catch(() => {});
+  }
+}
 
 const GITHUB_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+?(?:\.git)?\/?$/i;
 
@@ -102,6 +143,17 @@ export const submitRoutes: FastifyPluginAsync = async (app) => {
     });
 
     const queued = await enqueueSandboxTest({ moduleId: id });
+    if (!queued) {
+      // Fire-and-forget so the response returns immediately
+      void runInlineSandbox(
+        id,
+        repoPath,
+        analysis.techStack,
+        analysis.inputContract,
+        analysis.outputContract,
+      );
+    }
+
     const row = (
       await db.select().from(schema.modules).where(eq(schema.modules.id, id)).limit(1)
     )[0];
@@ -110,7 +162,7 @@ export const submitRoutes: FastifyPluginAsync = async (app) => {
       module: toModuleDTO(row),
       message: queued
         ? 'Repo analyzed and queued for sandbox testing.'
-        : 'Repo analyzed and stored. Sandbox queue is offline — testing will run once the worker connects.',
+        : 'Repo analyzed. Sandbox running inline (Redis unavailable) — poll the module for status.',
     };
     return payload;
   });
