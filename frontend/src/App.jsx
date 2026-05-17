@@ -5,9 +5,17 @@ import Landing from './screens/Landing.jsx';
 import Discovery from './screens/Discovery.jsx';
 import Submit from './screens/Submit.jsx';
 import Dashboard from './screens/Dashboard.jsx';
+import AiChat from './components/AiChat.jsx';
+
+const WELCOME_MSG = {
+  role: 'assistant',
+  content: "Hey! I'm the Hackmarket Assistant 👋 Tell me what you're building and I'll search the marketplace, pull up module details, recommend tools for your stack, or take you anywhere in the app — just ask.",
+};
 
 export default function App() {
   const [route, setRoute] = useState('landing');
+  // Chat state lives here so it survives page navigation
+  const [chatMessages, setChatMessages] = useState([WELCOME_MSG]);
 
   function go(r) {
     setRoute(r);
@@ -34,10 +42,20 @@ export default function App() {
   }
 
   return (
-    <div className="app" data-screen-label={screenLabel} key={route}>
+    // No key here — AiChat must NOT remount on navigation
+    <div className="app" data-screen-label={screenLabel}>
       <Nav route={route} go={go} />
-      {screen}
-      {footer}
+      {/* key only on the screen content so each page resets its own state */}
+      <div key={route} style={{ display: 'contents' }}>
+        {screen}
+        {footer}
+      </div>
+      <AiChat
+        go={go}
+        route={route}
+        messages={chatMessages}
+        setMessages={setChatMessages}
+      />
     </div>
   );
 }

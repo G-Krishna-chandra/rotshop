@@ -127,6 +127,37 @@ export default function Icon({ name, size = 16, color = 'currentColor', stroke =
           <circle cx="16" cy="13" r="1.3" fill={color} />
         </svg>
       );
+    case 'chevron-up':
+      return (
+        <svg {...props}>
+          <path d="M18 15l-6-6-6 6" />
+        </svg>
+      );
+    case 'chevron-down':
+      return (
+        <svg {...props}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      );
+    case 'mic':
+      return (
+        <svg {...props}>
+          <rect x="9" y="2" width="6" height="11" rx="3" />
+          <path d="M5 10a7 7 0 0014 0M12 19v3M8 22h8" />
+        </svg>
+      );
+    case 'square':
+      return (
+        <svg {...props} fill={color}>
+          <rect x="5" y="5" width="14" height="14" rx="2" />
+        </svg>
+      );
+    case 'refresh-cw':
+      return (
+        <svg {...props}>
+          <path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16" />
+        </svg>
+      );
     default:
       return null;
   }

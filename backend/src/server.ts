@@ -11,6 +11,8 @@ import { dashboardRoutes } from './routes/dashboard.js';
 import { keyRoutes } from './routes/keys.js';
 import { proxyRoutes } from './routes/proxy.js';
 import { adminRoutes } from './routes/admin.js';
+import { chatRoutes } from './routes/chat.js';
+import { voiceRoutes } from './routes/voice.js';
 import { registerAuth } from './middleware/auth.js';
 import { startSandboxWorker } from './queue/workers.js';
 
@@ -47,6 +49,8 @@ await app.register(reviewRoutes);
 await app.register(dashboardRoutes);
 await app.register(keyRoutes);
 await app.register(proxyRoutes);
+await app.register(chatRoutes);
+await app.register(voiceRoutes);
 
 try {
   await app.listen({ port: config.port, host: config.host });

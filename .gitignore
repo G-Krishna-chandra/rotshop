@@ -48,3 +48,6 @@ coverage/
 # Claude Design handoff bundle (reference material, not part of any package)
 design.tar.gz
 design_extract/
+
+# Claude Code session data
+.claude/

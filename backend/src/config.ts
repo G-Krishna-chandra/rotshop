@@ -26,6 +26,8 @@ export const config = {
   databaseUrl: optional('DATABASE_URL', './rotshop.db'),
   redisUrl: optional('REDIS_URL', 'redis://localhost:6379'),
   anthropicApiKey: optional('ANTHROPIC_API_KEY'),
+  deepseekApiKey: optional('DEEPSEEK_API_KEY'),
+  groqApiKey: optional('GROQ_API_KEY'),
   githubToken: optional('GITHUB_TOKEN'),
   adminJwtSecret: optional('ADMIN_JWT_SECRET', 'dev-change-me-immediately'),
   adminEmail: optional('ADMIN_EMAIL', 'admin@rotshop.local'),
